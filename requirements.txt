@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+torch
+datasets
+scikit-learn
+accelerate
+bitsandbytes
+transformers==4.40.0
