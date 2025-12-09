@@ -7,3 +7,4 @@ scikit-learn
 accelerate
 bitsandbytes
 transformers==4.40.0
+protobuf

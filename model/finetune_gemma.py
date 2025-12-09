@@ -1,3 +1,5 @@
+import sys, os
+sys.path.append(os.getcwd())
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer
 from datasets import Dataset
