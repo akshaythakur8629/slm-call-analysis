@@ -1,6 +1,7 @@
 # api/controllers/gemma_controller.py
 import subprocess
 import sys
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from ..services.gemma_service import (
     load_model,
@@ -10,6 +11,9 @@ from ..services.gemma_service import (
 
 router = APIRouter(prefix="/gemma", tags=["gemma"])
 
+# Get project root directory
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+
 
 @router.post("/train")
 async def train_gemma():
@@ -18,6 +22,7 @@ async def train_gemma():
     """
     result = subprocess.run(
         [sys.executable, "model/finetune_gemma.py"],
+        cwd=str(PROJECT_ROOT),  # Run from project root
         capture_output=True,
         text=True
     )

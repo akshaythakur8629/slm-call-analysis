@@ -2,7 +2,13 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer
 from datasets import Dataset
 import json
+import sys
 from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from training.gemma_formatter import build_training_data
 from api.services.dataset_service import load_training_dataset
 

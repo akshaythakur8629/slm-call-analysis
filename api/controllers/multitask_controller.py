@@ -1,6 +1,7 @@
 # api/controllers/multitask_controller.py
 import subprocess
 import sys
+from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from ..services.multitask_service import (
     load_model_if_available,
@@ -9,6 +10,9 @@ from ..services.multitask_service import (
 )
 
 router = APIRouter(prefix="/multitask", tags=["multitask"])
+
+# Get project root directory
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 
 @router.post("/train")
@@ -19,6 +23,7 @@ async def train_model():
     """
     result = subprocess.run(
         [sys.executable, "training/train_model.py"],
+        cwd=str(PROJECT_ROOT),  # Run from project root
         capture_output=True,
         text=True,
     )
