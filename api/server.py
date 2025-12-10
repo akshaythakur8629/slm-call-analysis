@@ -15,7 +15,7 @@ app = FastAPI(
 async def startup_event():
     """Load models on startup if available."""
     load_model_if_available()
-    load_model()
+    # load_model()  # DISABLE autoload at startup - Gemma loads lazily on first use
 
 
 app.include_router(transcript_controller.router)
