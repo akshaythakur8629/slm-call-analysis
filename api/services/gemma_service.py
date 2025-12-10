@@ -23,7 +23,7 @@ def load_model():
     if not MODEL_PATH.exists():
         return False
 
-    _tokenizer = AutoTokenizer.from_pretrained(str(MODEL_PATH))
+    _tokenizer = AutoTokenizer.from_pretrained(str(MODEL_PATH), use_fast=False)
     _model = AutoModelForCausalLM.from_pretrained(str(MODEL_PATH))
     
     if torch.cuda.is_available():

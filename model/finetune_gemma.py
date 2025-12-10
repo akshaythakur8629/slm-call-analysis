@@ -70,5 +70,6 @@ if __name__ == "__main__":
 
     print("Saving model to", OUTPUT_DIR)
     trainer.save_model(OUTPUT_DIR)
-    tokenizer.save_pretrained(OUTPUT_DIR)
+    tokenizer.save_pretrained(OUTPUT_DIR, safe_serialization=True)
+    model.save_pretrained(OUTPUT_DIR, safe_serialization=True)
     print("Gemma training finished!")
