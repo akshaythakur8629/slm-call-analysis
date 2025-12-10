@@ -6,7 +6,7 @@ from transformers import (
     AutoModelForCausalLM, 
     TrainingArguments, 
     Trainer,
-    DataCollatorForSeq2Seq
+    DataCollatorForLanguageModeling
 )
 from datasets import Dataset
 import json
@@ -69,7 +69,8 @@ def format_for_training(example):
             if tokens["attention_mask"][i] == 0:
                 labels[i] = -100
     
-    tokens["labels"] = labels
+    # Ensure labels is a list (not tensor) for the data collator
+    tokens["labels"] = list(labels) if not isinstance(labels, list) else labels
     return tokens
 
 
@@ -92,14 +93,26 @@ if __name__ == "__main__":
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
     hf_dataset = Dataset.from_list(rows)
+    print(f"Created dataset with {len(hf_dataset)} examples")
+    
+    print("Tokenizing dataset...")
     tokenized = hf_dataset.map(format_for_training, remove_columns=hf_dataset.column_names)
+    print(f"Tokenized dataset: {len(tokenized)} examples")
+    
+    # Verify one example has the right structure
+    if len(tokenized) > 0:
+        sample = tokenized[0]
+        print(f"Sample keys: {sample.keys()}")
+        print(f"Sample input_ids length: {len(sample.get('input_ids', []))}")
+        print(f"Sample labels length: {len(sample.get('labels', []))}")
+        print(f"Sample labels (first 10): {sample.get('labels', [])[:10]}")
 
     model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
     if torch.cuda.is_available():
         model.to("cuda")
 
     args = TrainingArguments(
-        output_dir=OUTPUT_DIR,
+        output_dir=str(OUTPUT_DIR),
         per_device_train_batch_size=1,
         num_train_epochs=1,
         learning_rate=5e-5,
@@ -109,13 +122,18 @@ if __name__ == "__main__":
         fp16=torch.cuda.is_available(),
         report_to=None,  # Disable wandb/tensorboard
         logging_first_step=True,
+        dataloader_num_workers=0,  # Disable multiprocessing to avoid issues
+        remove_unused_columns=False,  # Keep our labels
+        max_steps=10,  # Limit steps for testing (remove this later)
     )
 
-    # Data collator for padding batches - preserves our custom labels
+    # Use DataCollatorForSeq2Seq which preserves our custom labels
+    # This is better than DataCollatorForLanguageModeling which would overwrite labels
+    from transformers import DataCollatorForSeq2Seq
     data_collator = DataCollatorForSeq2Seq(
         tokenizer=tokenizer,
-        model=model,
         padding=True,
+        label_pad_token_id=-100,
     )
     
     trainer = Trainer(
