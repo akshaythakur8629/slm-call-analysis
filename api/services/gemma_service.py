@@ -23,15 +23,39 @@ def load_model():
     if not MODEL_PATH.exists():
         return False
 
-    _tokenizer = AutoTokenizer.from_pretrained(str(MODEL_PATH), use_fast=False)
-    _model = AutoModelForCausalLM.from_pretrained(str(MODEL_PATH))
+    try:
+        # Try loading tokenizer - let transformers decide the best approach
+        _tokenizer = AutoTokenizer.from_pretrained(
+            str(MODEL_PATH),
+            trust_remote_code=True
+        )
+    except Exception as e:
+        print(f"Warning: Failed to load tokenizer from {MODEL_PATH}: {e}")
+        # If loading from saved path fails, try loading from base model
+        # This can happen if tokenizer files weren't saved correctly
+        try:
+            BASE_MODEL = "google/gemma-2-2b"
+            _tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+            print("Loaded tokenizer from base model instead.")
+        except Exception as e2:
+            print(f"Error: Failed to load tokenizer: {e2}")
+            return False
     
-    if torch.cuda.is_available():
-        _model.to(DEVICE)
-    
-    _model.eval()
-    print("Loaded Gemma fine-tuned model.")
-    return True
+    try:
+        _model = AutoModelForCausalLM.from_pretrained(
+            str(MODEL_PATH),
+            trust_remote_code=True
+        )
+        
+        if torch.cuda.is_available():
+            _model.to(DEVICE)
+        
+        _model.eval()
+        print("Loaded Gemma fine-tuned model.")
+        return True
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        return False
 
 
 def analyze_transcript(transcript_text: str):

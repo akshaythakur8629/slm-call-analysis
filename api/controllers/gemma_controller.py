@@ -27,7 +27,11 @@ async def train_gemma():
         text=True
     )
     
-    load_model()
+    try:
+        load_model()
+    except Exception as e:
+        print(f"Warning: Could not load model after training: {e}")
+        print("Model will be loaded on first analyze call.")
     
     return {
         "status": "Gemma training finished",
