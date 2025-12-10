@@ -1,7 +1,13 @@
 import sys, os
 sys.path.append(os.getcwd())
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer
+from transformers import (
+    AutoTokenizer, 
+    AutoModelForCausalLM, 
+    TrainingArguments, 
+    Trainer,
+    DataCollatorForSeq2Seq
+)
 from datasets import Dataset
 import json
 import sys
@@ -20,12 +26,51 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def format_for_training(example):
-    full_text = example["instruction"] + "\n" + example["output"]
-    return tokenizer(
+    """
+    Format example for causal LM training.
+    Combine instruction and output, tokenize, and create labels.
+    Labels are masked for instruction part (-100), only output tokens contribute to loss.
+    """
+    # Combine instruction and output
+    instruction = example["instruction"]
+    output = example["output"]
+    
+    # Tokenize instruction part separately to know where to mask
+    instruction_tokens = tokenizer(
+        instruction,
+        truncation=True,
+        max_length=512,
+        add_special_tokens=True,
+        return_attention_mask=False,
+    )
+    instruction_len = len(instruction_tokens["input_ids"])
+    
+    # Tokenize full text (instruction + output) for training
+    full_text = instruction + "\n" + output
+    tokens = tokenizer(
         full_text,
         truncation=True,
         max_length=1024,
+        add_special_tokens=True,
+        return_attention_mask=True,
     )
+    
+    # Create labels: same as input_ids, but mask out instruction part
+    # -100 is ignored in CrossEntropyLoss, so loss only computed on output
+    labels = tokens["input_ids"].copy()
+    
+    # Mask out instruction tokens (don't compute loss on them)
+    for i in range(min(instruction_len, len(labels))):
+        labels[i] = -100
+    
+    # Also mask out padding tokens if any
+    if "attention_mask" in tokens:
+        for i in range(len(labels)):
+            if tokens["attention_mask"][i] == 0:
+                labels[i] = -100
+    
+    tokens["labels"] = labels
+    return tokens
 
 
 if __name__ == "__main__":
@@ -40,9 +85,14 @@ if __name__ == "__main__":
     print("Loading model/tokenizer:", BASE_MODEL)
     global tokenizer
     tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+    
+    # Set pad_token if it doesn't exist
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token_id = tokenizer.eos_token_id
 
     hf_dataset = Dataset.from_list(rows)
-    tokenized = hf_dataset.map(format_for_training)
+    tokenized = hf_dataset.map(format_for_training, remove_columns=hf_dataset.column_names)
 
     model = AutoModelForCausalLM.from_pretrained(BASE_MODEL)
     if torch.cuda.is_available():
@@ -59,10 +109,18 @@ if __name__ == "__main__":
         fp16=torch.cuda.is_available(),
     )
 
+    # Data collator for padding batches - preserves our custom labels
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer,
+        model=model,
+        padding=True,
+    )
+    
     trainer = Trainer(
         model=model,
         args=args,
         train_dataset=tokenized,
+        data_collator=data_collator,
     )
 
     print("Training...")
