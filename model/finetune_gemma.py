@@ -21,7 +21,7 @@ from training.gemma_formatter import build_training_data
 from api.services.dataset_service import load_training_dataset
 
 BASE_MODEL = "google/gemma-2-2b"
-OUTPUT_DIR = "./models/gemma_ft"
+OUTPUT_DIR = Path("./models/gemma_ft")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -105,8 +105,10 @@ if __name__ == "__main__":
         learning_rate=5e-5,
         gradient_accumulation_steps=2,
         save_strategy="epoch",
-        logging_steps=5,
+        logging_steps=1,  # Log more frequently to see progress
         fp16=torch.cuda.is_available(),
+        report_to=None,  # Disable wandb/tensorboard
+        logging_first_step=True,
     )
 
     # Data collator for padding batches - preserves our custom labels
@@ -124,10 +126,32 @@ if __name__ == "__main__":
     )
 
     print("Training...")
-    trainer.train()
-
-    print("Saving model to", OUTPUT_DIR)
-    trainer.save_model(OUTPUT_DIR)
-    tokenizer.save_pretrained(OUTPUT_DIR, safe_serialization=True)
-    model.save_pretrained(OUTPUT_DIR, safe_serialization=True)
-    print("Gemma training finished!")
+    print(f"Dataset size: {len(tokenized)} examples")
+    print(f"Training for {args.num_train_epochs} epochs")
+    
+    try:
+        train_result = trainer.train()
+        print(f"Training completed! Loss: {train_result.training_loss}")
+        
+        print(f"Saving model to {OUTPUT_DIR}...")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Save model and tokenizer (trainer.save_model already saves the model)
+        trainer.save_model(str(OUTPUT_DIR))
+        tokenizer.save_pretrained(str(OUTPUT_DIR), safe_serialization=True)
+        
+        # Verify files were saved
+        model_files = list(OUTPUT_DIR.glob("*.safetensors")) + list(OUTPUT_DIR.glob("*.bin"))
+        config_files = list(OUTPUT_DIR.glob("config.json"))
+        tokenizer_files = list(OUTPUT_DIR.glob("tokenizer*.json")) + list(OUTPUT_DIR.glob("tokenizer_config.json"))
+        
+        print(f"Saved {len(model_files)} model file(s), {len(config_files)} config file(s), {len(tokenizer_files)} tokenizer file(s)")
+        if model_files:
+            print(f"Model files: {[f.name for f in model_files[:3]]}")  # Show first 3
+        
+        print("Gemma training finished successfully!")
+    except Exception as e:
+        print(f"ERROR during training: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
